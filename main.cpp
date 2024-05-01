@@ -1,4 +1,6 @@
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <stdlib.h>
 #include <string>
 
@@ -148,12 +150,13 @@ public:
 
 int main(int argc, char **argv)
 {
-    const std::string seq = "(\n"
-                            "\n"
-                            "11 22\n"
-                            "( 3 4)\n"
-                            "\n"
-                            ")";
+
+    std::ifstream t("seq.txt");
+    std::stringstream buffer;
+    buffer << t.rdbuf();
+
+    const std::string seq = buffer.str();
+
     Lexer *lex = new Lexer(seq);
 
     while (lex->is_not_empty())
