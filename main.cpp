@@ -3,6 +3,7 @@
 #include <sstream>
 #include <stdlib.h>
 #include <string>
+#include <variant>
 
 #define TODO(text)        \
     printf("%s\n", text); \
@@ -19,10 +20,23 @@ enum TokenType
     ATOM,
 };
 
+enum AtomType
+{
+    SYMBOL,
+    STRING,
+    NUMBER,
+};
+
 std::string TokenTypeName[3] = {
     "OPEN_PAREN",
     "CLOSE_PAREN",
     "ATOM",
+};
+
+std::string AtomTypeName[3] = {
+    "SYMBOL",
+    "STRING",
+    "NUMBER",
 };
 
 class Location
@@ -43,18 +57,47 @@ public:
     }
 };
 
+class Atom
+{
+public:
+    AtomType type;
+    std::variant<std::string, float> payload;
+
+    Atom(AtomType type, std::variant<std::string, float> payload)
+    {
+        this->type = type;
+        this->payload = payload;
+    }
+
+    template <typename T>
+    T get_payload()
+    {
+        if (auto value = std::get_if<T>(&this->payload))
+        {
+            return *value;
+        }
+        UNREACHABLE;
+    }
+};
+
 class Token
 {
 public:
     TokenType type;
     std::string value;
     Location *loc;
+    Atom *atom;
 
-    Token(TokenType type, std::string value, Location *loc)
+    Token(TokenType type, std::string value, Location *loc, Atom *atom)
     {
         this->type = type;
         this->value = value;
         this->loc = loc;
+
+        if (atom != NULL)
+        {
+            this->atom = atom;
+        }
     }
 };
 
@@ -69,11 +112,6 @@ public:
     Lexer(std::string text)
     {
         this->text = text;
-    }
-
-    ~Lexer()
-    {
-        delete &this->text;
     }
 
     void chop_char()
@@ -115,12 +153,39 @@ public:
         if (first_char == '(')
         {
             this->chop_char();
-            return new Token(TokenType::OPEN_PAREN, "(", loc);
+            return new Token(TokenType::OPEN_PAREN, "(", loc, NULL);
         }
         else if (first_char == ')')
         {
             this->chop_char();
-            return new Token(TokenType::CLOSE_PAREN, ")", loc);
+            return new Token(TokenType::CLOSE_PAREN, ")", loc, NULL);
+        }
+        else if (isdigit(first_char) || first_char == '-')
+        {
+            bool is_negative = false;
+
+            if (first_char == '-')
+            {
+                this->chop_char();
+                is_negative = true;
+            }
+
+            int start_index = this->loc;
+            int end_index = 0;
+
+            while (this->is_not_empty() && isdigit(this->text.at(this->loc)) || this->text.at(this->loc) == '.')
+            {
+                this->chop_char();
+                end_index += 1;
+            }
+            std::string num = this->text.substr(start_index, end_index);
+
+            std::string value = is_negative ? "-" + num : num;
+            float parsed_value = this->string_to_float(value);
+
+            Atom *atom = new Atom(AtomType::NUMBER, parsed_value);
+
+            return new Token(TokenType::ATOM, value, loc, atom);
         }
         else if (isalnum(first_char))
         {
@@ -134,7 +199,28 @@ public:
             }
             std::string value = this->text.substr(start_index, end_index);
 
-            return new Token(TokenType::ATOM, value, loc);
+            Atom *atom = new Atom(AtomType::SYMBOL, value);
+
+            return new Token(TokenType::ATOM, value, loc, atom);
+        }
+        else if (first_char = '"')
+        {
+            this->chop_char();
+            int start_index = this->loc;
+            int end_index = 0;
+
+            while (this->is_not_empty() && this->text.at(this->loc) != '"')
+            {
+                this->chop_char();
+                end_index += 1;
+            }
+
+            this->chop_char();
+            std::string value = this->text.substr(start_index, end_index);
+
+            Atom *atom = new Atom(AtomType::STRING, value);
+
+            return new Token(TokenType::ATOM, value, loc, atom);
         }
         else
         {
@@ -145,6 +231,12 @@ public:
     bool is_not_empty()
     {
         return this->loc + 1 <= this->text.length();
+    }
+
+private:
+    float string_to_float(std::string input)
+    {
+        return ::atof(input.c_str());
     }
 };
 
@@ -162,6 +254,20 @@ int main(int argc, char **argv)
     while (lex->is_not_empty())
     {
         Token *token = lex->next_token();
-        std::cout << token->loc->dump() << ": " << token->value << " is " << TokenTypeName[token->type] << std::endl;
+        if (token->type == TokenType::ATOM && token->atom != NULL)
+        {
+            if (token->atom->type == AtomType::STRING || token->atom->type == AtomType::SYMBOL)
+            {
+                std::cout << token->loc->dump() << ": \"" << token->value << "\" is " << TokenTypeName[token->type] << " of type " << AtomTypeName[token->atom->type] << " with value " << token->atom->get_payload<std::string>() << std::endl;
+            }
+            else if (token->atom->type == AtomType::NUMBER)
+            {
+                std::cout << token->loc->dump() << ": \"" << token->value << "\" is " << TokenTypeName[token->type] << " of type " << AtomTypeName[token->atom->type] << " with value " << token->atom->get_payload<float>() << std::endl;
+            }
+        }
+        else
+        {
+            std::cout << token->loc->dump() << ": \"" << token->value << "\" is " << TokenTypeName[token->type] << std::endl;
+        }
     }
 }

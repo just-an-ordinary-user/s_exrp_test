@@ -1,4 +1,12 @@
 (
-    11 22
-    (3 4)
+    (
+        set (x 8)
+        set (y 8.5)
+    )
+    (
+        if (eq x y)
+        then (print x "eq" y)
+        else (print "Error: " -1)
+    )
+    (print (sum 12 23 -8 0 -21.12))
 )
