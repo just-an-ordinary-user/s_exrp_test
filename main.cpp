@@ -203,7 +203,7 @@ public:
 
             return new Token(TokenType::ATOM, value, loc, atom);
         }
-        else if (first_char = '"')
+        else if (first_char == '"')
         {
             this->chop_char();
             int start_index = this->loc;
@@ -230,7 +230,7 @@ public:
 
     bool is_not_empty()
     {
-        return this->loc + 1 <= this->text.length();
+        return this->loc + 1 < this->text.length();
     }
 
 private:
